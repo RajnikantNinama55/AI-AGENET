@@ -1,0 +1,54 @@
+{% extends 'layout.html' %}
+
+{% block title %}Trading Bot | Register{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Register</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('main_bp.register') }}">
+                    {{ form.hidden_tag() if form }}
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username</label>
+                        <input type="text" class="form-control" id="username" name="username" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="email" name="email" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="password" name="password" required>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-user-plus me-1"></i> Register
+                        </button>
+                    </div>
+                </form>
+                <div class="mt-3 text-center">
+                    <p>Already have an account? <a href="{{ url_for('main_bp.login') }}">Login</a></p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Demo Account</h5>
+            </div>
+            <div class="card-body">
+                <p>Rather than registering, you can create a demo account with pre-configured settings:</p>
+                <div class="d-grid">
+                    <a href="{{ url_for('main_bp.create_demo_data') }}" class="btn btn-secondary">
+                        <i class="fas fa-database me-1"></i> Create Demo Account
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

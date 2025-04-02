@@ -1,0 +1,614 @@
+{% extends 'layout.html' %}
+
+{% block title %}Trading Bot | Backtest{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Backtest Configuration</h5>
+            </div>
+            <div class="card-body">
+                <form id="backtest-form">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="backtest-strategy" class="form-label">Strategy</label>
+                                <select id="backtest-strategy" class="form-select" required>
+                                    <option value="all">All Strategies</option>
+                                    <option value="trend_following">Trend Following</option>
+                                    <option value="mean_reversion">Mean Reversion</option>
+                                    <option value="breakout">Breakout</option>
+                                    <option value="momentum">Momentum</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="backtest-symbol" class="form-label">Symbol</label>
+                                <select id="backtest-symbol" class="form-select" required>
+                                    <option value="BTC-USDT">BTC-USDT</option>
+                                    <option value="ETH-USDT">ETH-USDT</option>
+                                    <option value="SOL-USDT">SOL-USDT</option>
+                                    <option value="XRP-USDT">XRP-USDT</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="backtest-timeframe" class="form-label">Timeframe</label>
+                                <select id="backtest-timeframe" class="form-select" required>
+                                    <option value="1m">1 Minute</option>
+                                    <option value="5m">5 Minutes</option>
+                                    <option value="15m">15 Minutes</option>
+                                    <option value="1h">1 Hour</option>
+                                    <option value="4h">4 Hours</option>
+                                    <option value="1d">1 Day</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="backtest-start-date" class="form-label">Start Date</label>
+                                <input type="date" id="backtest-start-date" class="form-control" required>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="backtest-end-date" class="form-label">End Date</label>
+                                <input type="date" id="backtest-end-date" class="form-control" required>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="backtest-initial-capital" class="form-label">Initial Capital</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <input type="number" id="backtest-initial-capital" class="form-control" value="10000" min="100" required>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="optimize-parameters">
+                            <label class="form-check-label" for="optimize-parameters">Optimize Strategy Parameters</label>
+                        </div>
+                    </div>
+                    
+                    <div class="row" id="strategy-parameters-container">
+                        <!-- Strategy-specific parameters will be loaded here -->
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <button type="submit" id="run-backtest-btn" class="btn btn-primary">
+                            <i class="fas fa-play me-1"></i> Run Backtest
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4 backtest-results" style="display: none;">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Backtest Results</h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-4">
+                    <div class="col-lg-3 col-md-6 mb-3 mb-lg-0">
+                        <div class="metric-card">
+                            <div class="metric-title">Total Return</div>
+                            <div class="metric-value" id="backtest-total-return">0.00%</div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 col-md-6 mb-3 mb-lg-0">
+                        <div class="metric-card">
+                            <div class="metric-title">Win Rate</div>
+                            <div class="metric-value" id="backtest-win-rate">0.00%</div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 col-md-6 mb-3 mb-lg-0">
+                        <div class="metric-card">
+                            <div class="metric-title">Profit Factor</div>
+                            <div class="metric-value" id="backtest-profit-factor">0.00</div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 col-md-6">
+                        <div class="metric-card">
+                            <div class="metric-title">Max Drawdown</div>
+                            <div class="metric-value" id="backtest-drawdown">0.00%</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="chart-container mb-4">
+                    <canvas id="equityCurveChart"></canvas>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="mb-3">Strategy Performance</h6>
+                        <div class="chart-container">
+                            <canvas id="strategyPerformanceChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="mb-3">Trade Distribution</h6>
+                        <div class="chart-container">
+                            <canvas id="tradeDistributionChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row backtest-results" style="display: none;">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Backtest Trades</h5>
+                <button id="export-backtest" class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-download me-1"></i> Export Results
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Entry Time</th>
+                                <th>Exit Time</th>
+                                <th>Strategy</th>
+                                <th>Type</th>
+                                <th>Entry Price</th>
+                                <th>Exit Price</th>
+                                <th>PnL</th>
+                                <th>PnL %</th>
+                            </tr>
+                        </thead>
+                        <tbody id="backtest-trades">
+                            <!-- Backtest trades will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    $(document).ready(function() {
+        // Set default dates for backtest
+        const today = new Date();
+        const oneMonthAgo = new Date();
+        oneMonthAgo.setMonth(today.getMonth() - 1);
+        
+        $('#backtest-end-date').val(today.toISOString().slice(0, 10));
+        $('#backtest-start-date').val(oneMonthAgo.toISOString().slice(0, 10));
+        
+        // Strategy parameter toggle
+        const parametersByStrategy = {
+            trend_following: [
+                { name: 'short_window', label: 'Short Window', type: 'number', default: 20, min: 5, max: 50 },
+                { name: 'long_window', label: 'Long Window', type: 'number', default: 50, min: 20, max: 200 },
+                { name: 'take_profit', label: 'Take Profit (%)', type: 'number', default: 3.0, min: 0.5, max: 10, step: 0.1 },
+                { name: 'stop_loss', label: 'Stop Loss (%)', type: 'number', default: 2.0, min: 0.5, max: 10, step: 0.1 }
+            ],
+            mean_reversion: [
+                { name: 'rsi_period', label: 'RSI Period', type: 'number', default: 14, min: 5, max: 30 },
+                { name: 'oversold_threshold', label: 'Oversold Threshold', type: 'number', default: 30, min: 10, max: 40 },
+                { name: 'overbought_threshold', label: 'Overbought Threshold', type: 'number', default: 70, min: 60, max: 90 },
+                { name: 'take_profit', label: 'Take Profit (%)', type: 'number', default: 2.0, min: 0.5, max: 10, step: 0.1 },
+                { name: 'stop_loss', label: 'Stop Loss (%)', type: 'number', default: 2.0, min: 0.5, max: 10, step: 0.1 }
+            ],
+            breakout: [
+                { name: 'period', label: 'Breakout Period', type: 'number', default: 20, min: 5, max: 50 },
+                { name: 'atr_period', label: 'ATR Period', type: 'number', default: 14, min: 5, max: 30 },
+                { name: 'atr_multiplier', label: 'ATR Multiplier', type: 'number', default: 2.0, min: 0.5, max: 5, step: 0.1 },
+                { name: 'take_profit', label: 'Take Profit (%)', type: 'number', default: 4.0, min: 0.5, max: 10, step: 0.1 },
+                { name: 'stop_loss', label: 'Stop Loss (%)', type: 'number', default: 2.0, min: 0.5, max: 10, step: 0.1 }
+            ],
+            momentum: [
+                { name: 'period', label: 'Momentum Period', type: 'number', default: 14, min: 5, max: 30 },
+                { name: 'threshold', label: 'Momentum Threshold', type: 'number', default: 0.5, min: 0.1, max: 5, step: 0.1 },
+                { name: 'take_profit', label: 'Take Profit (%)', type: 'number', default: 3.0, min: 0.5, max: 10, step: 0.1 },
+                { name: 'stop_loss', label: 'Stop Loss (%)', type: 'number', default: 2.0, min: 0.5, max: 10, step: 0.1 }
+            ]
+        };
+        
+        function loadStrategyParameters() {
+            const strategy = $('#backtest-strategy').val();
+            const container = $('#strategy-parameters-container');
+            container.empty();
+            
+            // If "all strategies" is selected or optimize is checked, hide parameters
+            if (strategy === 'all' || $('#optimize-parameters').prop('checked')) {
+                container.hide();
+                return;
+            }
+            
+            container.show();
+            
+            // Add title for the parameters section
+            container.append('<div class="col-12 mb-3"><h6>Strategy Parameters</h6></div>');
+            
+            // Load parameters for the selected strategy
+            const parameters = parametersByStrategy[strategy] || [];
+            
+            parameters.forEach(param => {
+                const inputHtml = `
+                    <div class="col-md-3 mb-3">
+                        <label for="param-${param.name}" class="form-label">${param.label}</label>
+                        <input 
+                            type="${param.type}" 
+                            id="param-${param.name}" 
+                            name="${param.name}" 
+                            class="form-control strategy-param" 
+                            value="${param.default}" 
+                            min="${param.min}" 
+                            max="${param.max}" 
+                            step="${param.step || 1}"
+                        >
+                    </div>
+                `;
+                container.append(inputHtml);
+            });
+        }
+        
+        // Load parameters when strategy changes
+        $('#backtest-strategy').change(loadStrategyParameters);
+        
+        // Toggle parameters visibility when optimize checkbox changes
+        $('#optimize-parameters').change(function() {
+            if ($(this).prop('checked')) {
+                $('#strategy-parameters-container').hide();
+            } else {
+                loadStrategyParameters();
+            }
+        });
+        
+        // Initialize parameters
+        loadStrategyParameters();
+        
+        // Backtest form submission
+        $('#backtest-form').submit(function(e) {
+            e.preventDefault();
+            
+            const runButton = $('#run-backtest-btn');
+            runButton.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Running...');
+            
+            // Hide previous results
+            $('.backtest-results').hide();
+            
+            // Gather form data
+            const formData = {
+                strategy: $('#backtest-strategy').val(),
+                symbol: $('#backtest-symbol').val(),
+                timeframe: $('#backtest-timeframe').val(),
+                start_date: $('#backtest-start-date').val(),
+                end_date: $('#backtest-end-date').val(),
+                initial_capital: $('#backtest-initial-capital').val(),
+                optimize_parameters: $('#optimize-parameters').prop('checked')
+            };
+            
+            // Add strategy parameters if applicable
+            if (formData.strategy !== 'all' && !formData.optimize_parameters) {
+                formData.parameters = {};
+                $('.strategy-param').each(function() {
+                    const paramName = $(this).attr('name');
+                    const paramValue = $(this).val();
+                    formData.parameters[paramName] = parseFloat(paramValue);
+                });
+            }
+            
+            // Send backtest request
+            $.ajax({
+                url: '/api/run_backtest',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(formData),
+                success: function(response) {
+                    if (response.success) {
+                        displayBacktestResults(response.results);
+                    } else {
+                        alert('Backtest failed: ' + response.message);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    alert('An error occurred while running the backtest.');
+                    console.error(error);
+                },
+                complete: function() {
+                    runButton.prop('disabled', false).html('<i class="fas fa-play me-1"></i> Run Backtest');
+                }
+            });
+        });
+        
+        // Function to display backtest results
+        function displayBacktestResults(results) {
+            // Show results containers
+            $('.backtest-results').show();
+            
+            // Update summary metrics
+            $('#backtest-total-return').text(results.total_return.toFixed(2) + '%');
+            $('#backtest-win-rate').text(results.win_rate.toFixed(2) + '%');
+            $('#backtest-profit-factor').text(results.profit_factor.toFixed(2));
+            $('#backtest-drawdown').text(results.max_drawdown.toFixed(2) + '%');
+            
+            if (results.total_return >= 0) {
+                $('#backtest-total-return').removeClass('text-danger').addClass('text-success');
+            } else {
+                $('#backtest-total-return').removeClass('text-success').addClass('text-danger');
+            }
+            
+            // Render equity curve chart
+            const equityCurveCtx = document.getElementById('equityCurveChart').getContext('2d');
+            if (window.equityCurveChart) {
+                window.equityCurveChart.destroy();
+            }
+            
+            window.equityCurveChart = new Chart(equityCurveCtx, {
+                type: 'line',
+                data: {
+                    labels: Array.from({length: results.equity_curve.length}, (_, i) => i),
+                    datasets: [{
+                        label: 'Portfolio Value',
+                        data: results.equity_curve,
+                        borderColor: '#2196F3',
+                        backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.1,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                label: function(context) {
+                                    return 'Portfolio Value: $' + context.raw.toFixed(2);
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            },
+                            ticks: {
+                                color: '#FFFFFF'
+                            }
+                        },
+                        y: {
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            },
+                            ticks: {
+                                color: '#FFFFFF',
+                                callback: function(value) {
+                                    return '$' + value.toFixed(0);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Render strategy performance chart (for multi-strategy backtests)
+            if (results.individual_results) {
+                const strategyLabels = Object.keys(results.individual_results);
+                const strategyReturns = strategyLabels.map(s => results.individual_results[s].total_return);
+                
+                const strategyColors = [
+                    'rgba(33, 150, 243, 0.7)',  // Primary (blue)
+                    'rgba(37, 211, 102, 0.7)',  // Success (green)
+                    'rgba(0, 188, 212, 0.7)',   // Info (cyan)
+                    'rgba(255, 193, 7, 0.7)'    // Warning (amber)
+                ];
+                
+                const strategyCtx = document.getElementById('strategyPerformanceChart').getContext('2d');
+                if (window.strategyChart) {
+                    window.strategyChart.destroy();
+                }
+                
+                window.strategyChart = new Chart(strategyCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: strategyLabels,
+                        datasets: [{
+                            data: strategyReturns,
+                            backgroundColor: strategyLabels.map((_, i) => strategyColors[i % strategyColors.length])
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return 'Return: ' + context.raw.toFixed(2) + '%';
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                grid: {
+                                    color: 'rgba(255, 255, 255, 0.1)'
+                                },
+                                ticks: {
+                                    color: '#FFFFFF'
+                                }
+                            },
+                            y: {
+                                grid: {
+                                    color: 'rgba(255, 255, 255, 0.1)'
+                                },
+                                ticks: {
+                                    color: '#FFFFFF',
+                                    callback: function(value) {
+                                        return value.toFixed(0) + '%';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            
+            // Render trade distribution chart
+            const trades = results.trades || [];
+            const winningTrades = trades.filter(t => t.pnl > 0).length;
+            const losingTrades = trades.filter(t => t.pnl < 0).length;
+            const breakEvenTrades = trades.length - winningTrades - losingTrades;
+            
+            const tradeCtx = document.getElementById('tradeDistributionChart').getContext('2d');
+            if (window.tradeDistChart) {
+                window.tradeDistChart.destroy();
+            }
+            
+            window.tradeDistChart = new Chart(tradeCtx, {
+                type: 'pie',
+                data: {
+                    labels: ['Winning', 'Losing', 'Break Even'],
+                    datasets: [{
+                        data: [winningTrades, losingTrades, breakEvenTrades],
+                        backgroundColor: [
+                            'rgba(37, 211, 102, 0.7)',  // Success (green)
+                            'rgba(255, 68, 68, 0.7)',   // Danger (red)
+                            'rgba(108, 117, 125, 0.7)'  // Secondary (gray)
+                        ],
+                        borderColor: '#000000'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                color: '#FFFFFF'
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.raw;
+                                    const percentage = (value / trades.length * 100).toFixed(1);
+                                    return `${context.label}: ${value} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Populate trade table
+            const tradeTable = $('#backtest-trades');
+            tradeTable.empty();
+            
+            if (trades.length === 0) {
+                tradeTable.append('<tr><td colspan="9" class="text-center">No trades executed during the backtest period</td></tr>');
+            } else {
+                trades.forEach((trade, index) => {
+                    const pnlClass = trade.pnl >= 0 ? 'text-success' : 'text-danger';
+                    
+                    // Format dates
+                    const entryDate = new Date(trade.entry_time || '').toLocaleString();
+                    const exitDate = new Date(trade.exit_time || '').toLocaleString();
+                    
+                    tradeTable.append(`
+                        <tr>
+                            <td>${index + 1}</td>
+                            <td>${entryDate}</td>
+                            <td>${exitDate}</td>
+                            <td>${results.strategy || trade.strategy}</td>
+                            <td>${trade.type}</td>
+                            <td>$${trade.entry.toFixed(2)}</td>
+                            <td>$${trade.exit.toFixed(2)}</td>
+                            <td class="${pnlClass}">$${trade.pnl.toFixed(2)}</td>
+                            <td class="${pnlClass}">${trade.pnl_pct.toFixed(2)}%</td>
+                        </tr>
+                    `);
+                });
+            }
+            
+            // Export functionality
+            $('#export-backtest').off('click').on('click', function() {
+                exportBacktestResults(results);
+            });
+            
+            // Scroll to results
+            $('html, body').animate({
+                scrollTop: $('.backtest-results').first().offset().top - 70
+            }, 500);
+        }
+        
+        // Function to export backtest results as CSV
+        function exportBacktestResults(results) {
+            // Prepare summary data
+            let csv = 'Backtest Summary\n';
+            csv += `Symbol,${results.symbol || ''}\n`;
+            csv += `Timeframe,${results.timeframe || ''}\n`;
+            csv += `Strategy,${results.strategy || 'Combined'}\n`;
+            csv += `Initial Capital,$${results.initial_capital || 10000}\n`;
+            csv += `Final Capital,$${results.final_capital || 0}\n`;
+            csv += `Total Return,${results.total_return.toFixed(2)}%\n`;
+            csv += `Win Rate,${results.win_rate.toFixed(2)}%\n`;
+            csv += `Profit Factor,${results.profit_factor.toFixed(2)}\n`;
+            csv += `Max Drawdown,${results.max_drawdown.toFixed(2)}%\n`;
+            csv += `Total Trades,${results.total_trades || 0}\n\n`;
+            
+            // Add trade data
+            csv += 'Trades\n';
+            csv += 'Trade #,Entry Time,Exit Time,Type,Entry Price,Exit Price,PnL,PnL %\n';
+            
+            const trades = results.trades || [];
+            trades.forEach((trade, index) => {
+                const entryDate = new Date(trade.entry_time || '').toLocaleString();
+                const exitDate = new Date(trade.exit_time || '').toLocaleString();
+                
+                csv += `${index + 1},${entryDate},${exitDate},${trade.type},$${trade.entry.toFixed(2)},$${trade.exit.toFixed(2)},$${trade.pnl.toFixed(2)},${trade.pnl_pct.toFixed(2)}%\n`;
+            });
+            
+            // Create download link
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `backtest_${results.symbol || 'combined'}_${new Date().toISOString().slice(0,10)}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    });
+</script>
+{% endblock %}

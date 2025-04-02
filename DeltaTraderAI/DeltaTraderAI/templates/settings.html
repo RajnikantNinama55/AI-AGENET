@@ -1,0 +1,772 @@
+{% extends 'layout.html' %}
+
+{% block title %}Trading Bot | Settings{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/settings.js') }}"></script>
+<script>
+    $(document).ready(function() {
+        // Toggle API secret visibility
+        $('#toggle-secret').click(function() {
+            const secretInput = $('#api-secret');
+            const secretType = secretInput.attr('type');
+            const icon = $(this).find('i');
+            
+            if (secretType === 'password') {
+                secretInput.attr('type', 'text');
+                icon.removeClass('fa-eye').addClass('fa-eye-slash');
+            } else {
+                secretInput.attr('type', 'password');
+                icon.removeClass('fa-eye-slash').addClass('fa-eye');
+            }
+        });
+        
+        // Load API settings
+        $.get('/api/get_user_settings', function(data) {
+            if (data.success) {
+                if (data.api_key) {
+                    $('#api-key').val(data.api_key);
+                }
+                if (data.api_secret) {
+                    // Show masked secret
+                    $('#api-secret').val('••••••••••••••••••••••••••');
+                }
+                
+                // Load trading settings
+                if (data.trading_settings) {
+                    $('#risk-per-trade').val(data.trading_settings.risk_per_trade || 1.0);
+                    $('#max-trades').val(data.trading_settings.max_trades || 3);
+                    $('#trade-timeout').val(data.trading_settings.trade_timeout || 48);
+                }
+                
+                // Load auto-trade settings
+                if (data.auto_trade !== undefined) {
+                    $('#auto-trade').prop('checked', data.auto_trade);
+                }
+                
+                // Load trading symbols
+                if (data.trading_symbols && Array.isArray(data.trading_symbols)) {
+                    $('#trading-symbols option').prop('selected', false);
+                    data.trading_symbols.forEach(symbol => {
+                        $(`#trading-symbols option[value="${symbol}"]`).prop('selected', true);
+                    });
+                }
+                
+                // Load trading timeframes
+                if (data.trading_timeframes && Array.isArray(data.trading_timeframes)) {
+                    $('.timeframe-checks input').prop('checked', false);
+                    data.trading_timeframes.forEach(timeframe => {
+                        $(`#timeframe-${timeframe}`).prop('checked', true);
+                    });
+                }
+            }
+        });
+        
+        // Load strategy settings
+        $.get('/api/get_strategy_settings', function(data) {
+            if (data.success && data.strategies) {
+                // Populate each strategy form
+                Object.keys(data.strategies).forEach(strategy => {
+                    const settings = data.strategies[strategy];
+                    const form = $(`form[data-strategy="${strategy}"]`);
+                    
+                    // Set active state
+                    form.find('.strategy-active').prop('checked', settings.is_active);
+                    
+                    // Set parameters
+                    if (settings.parameters) {
+                        Object.keys(settings.parameters).forEach(param => {
+                            form.find(`[name="${param}"]`).val(settings.parameters[param]);
+                        });
+                    }
+                });
+            }
+        });
+        
+        // Save API settings
+        $('#api-settings-form').submit(function(e) {
+            e.preventDefault();
+            
+            const apiKey = $('#api-key').val();
+            let apiSecret = $('#api-secret').val();
+            
+            // Don't send if it's just the masked placeholder
+            if (apiSecret === '••••••••••••••••••••••••••') {
+                apiSecret = '';
+            }
+            
+            $.ajax({
+                url: '/api/save_api_settings',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    api_key: apiKey,
+                    api_secret: apiSecret
+                }),
+                success: function(response) {
+                    if (response.success) {
+                        alert('API settings saved successfully');
+                    } else {
+                        alert('Failed to save API settings: ' + response.message);
+                    }
+                },
+                error: function() {
+                    alert('An error occurred while saving API settings');
+                }
+            });
+        });
+        
+        // Save trading settings
+        $('#trading-settings-form').submit(function(e) {
+            e.preventDefault();
+            
+            const riskPerTrade = parseFloat($('#risk-per-trade').val());
+            const maxTrades = parseInt($('#max-trades').val());
+            const tradeTimeout = parseInt($('#trade-timeout').val());
+            const autoTrade = $('#auto-trade').is(':checked');
+            
+            const tradingSymbols = $('#trading-symbols').val();
+            
+            // Get selected timeframes
+            const timeframes = [];
+            $('.timeframe-checks input:checked').each(function() {
+                timeframes.push($(this).val());
+            });
+            
+            $.ajax({
+                url: '/api/save_trading_settings',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    trading_settings: {
+                        risk_per_trade: riskPerTrade,
+                        max_trades: maxTrades,
+                        trade_timeout: tradeTimeout
+                    },
+                    auto_trade: autoTrade,
+                    trading_symbols: tradingSymbols,
+                    trading_timeframes: timeframes
+                }),
+                success: function(response) {
+                    if (response.success) {
+                        alert('Trading settings saved successfully');
+                    } else {
+                        alert('Failed to save trading settings: ' + response.message);
+                    }
+                },
+                error: function() {
+                    alert('An error occurred while saving trading settings');
+                }
+            });
+        });
+        
+        // Save strategy settings
+        $('.strategy-form').submit(function(e) {
+            e.preventDefault();
+            
+            const form = $(this);
+            const strategyType = form.data('strategy');
+            const isActive = form.find('.strategy-active').is(':checked');
+            
+            // Get all parameters from form
+            const parameters = {};
+            form.find('[name]').each(function() {
+                const param = $(this).attr('name');
+                if (param !== 'is_active') {
+                    // Convert to number if possible
+                    const value = $(this).val();
+                    parameters[param] = !isNaN(value) ? parseFloat(value) : value;
+                }
+            });
+            
+            $.ajax({
+                url: '/api/save_strategy_settings',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    strategy_type: strategyType,
+                    is_active: isActive,
+                    parameters: parameters
+                }),
+                success: function(response) {
+                    if (response.success) {
+                        alert(`${strategyType} strategy settings saved successfully`);
+                    } else {
+                        alert(`Failed to save ${strategyType} strategy settings: ${response.message}`);
+                    }
+                },
+                error: function() {
+                    alert(`An error occurred while saving ${strategyType} strategy settings`);
+                }
+            });
+        });
+        
+        // Save trading schedule
+        $('#trading-schedule-form').submit(function(e) {
+            e.preventDefault();
+            
+            const schedule = [];
+            
+            $('.schedule-day').each(function() {
+                const day = $(this).data('day');
+                const isActive = $(this).find('.day-active').is(':checked');
+                const startTime = $(this).find('.start-time').val();
+                const endTime = $(this).find('.end-time').val();
+                
+                schedule.push({
+                    day: day,
+                    is_active: isActive,
+                    start_time: startTime,
+                    end_time: endTime
+                });
+            });
+            
+            $.ajax({
+                url: '/api/save_trading_schedule',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    schedule: schedule
+                }),
+                success: function(response) {
+                    if (response.success) {
+                        alert('Trading schedule saved successfully');
+                    } else {
+                        alert('Failed to save trading schedule: ' + response.message);
+                    }
+                },
+                error: function() {
+                    alert('An error occurred while saving trading schedule');
+                }
+            });
+        });
+        
+        // Save schedule settings
+        $('#schedule-form').submit(function(e) {
+            e.preventDefault();
+            
+            const autoTrade = $('#auto-trade').is(':checked');
+            
+            // Get selected symbols
+            const symbols = [];
+            $('#trading-symbols option:selected').each(function() {
+                symbols.push($(this).val());
+            });
+            
+            // Get selected timeframes
+            const timeframes = [];
+            $('.timeframe-checks input:checked').each(function() {
+                timeframes.push($(this).val());
+            });
+            
+            $.ajax({
+                url: '/api/save_schedule_settings',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ 
+                    auto_trade: autoTrade,
+                    trading_symbols: symbols,
+                    trading_timeframes: timeframes
+                }),
+                success: function(response) {
+                    if (response.success) {
+                        alert('Trading schedule saved successfully');
+                    } else {
+                        alert('Failed to save trading schedule: ' + response.message);
+                    }
+                },
+                error: function() {
+                    alert('An error occurred while saving trading schedule');
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">API Configuration</h5>
+            </div>
+            <div class="card-body">
+                <form id="api-settings-form">
+                    <div class="mb-3">
+                        <label for="api-key" class="form-label">Delta Exchange API Key</label>
+                        <input type="text" class="form-control" id="api-key" placeholder="Enter your API key">
+                    </div>
+                    <div class="mb-3">
+                        <label for="api-secret" class="form-label">Delta Exchange API Secret</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="api-secret" placeholder="Enter your API secret">
+                            <button class="btn btn-outline-secondary" type="button" id="toggle-secret">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i> Save API Settings
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Trading Parameters</h5>
+            </div>
+            <div class="card-body">
+                <form id="trading-settings-form">
+                    <div class="mb-3">
+                        <label for="risk-per-trade" class="form-label">Risk per Trade (%)</label>
+                        <input type="number" class="form-control" id="risk-per-trade" min="0.1" max="10" step="0.1" value="1.0">
+                        <div class="form-text">Percentage of account balance risked on each trade</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="max-trades" class="form-label">Maximum Concurrent Trades</label>
+                        <input type="number" class="form-control" id="max-trades" min="1" max="10" value="3">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="trade-timeout" class="form-label">Trade Timeout (hours)</label>
+                        <input type="number" class="form-control" id="trade-timeout" min="1" max="168" value="48">
+                        <div class="form-text">Close trades automatically after this duration</div>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i> Save Trading Settings
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Strategy Configuration</h5>
+            </div>
+            <div class="card-body">
+                <div class="accordion" id="strategyAccordion">
+                    <!-- Trend Following Strategy -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingTrend">
+                            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTrend" aria-expanded="true" aria-controls="collapseTrend">
+                                Trend Following Strategy
+                            </button>
+                        </h2>
+                        <div id="collapseTrend" class="accordion-collapse collapse show" aria-labelledby="headingTrend" data-bs-parent="#strategyAccordion">
+                            <div class="accordion-body">
+                                <form id="trend-following-form" class="strategy-form" data-strategy="trend_following">
+                                    <div class="form-check form-switch mb-3">
+                                        <input class="form-check-input strategy-active" type="checkbox" id="trend-active" checked>
+                                        <label class="form-check-label" for="trend-active">Enable Strategy</label>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label for="trend-short-window" class="form-label">Short Window</label>
+                                            <input type="number" class="form-control" id="trend-short-window" name="short_window" min="5" max="50" value="20">
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label for="trend-long-window" class="form-label">Long Window</label>
+                                            <input type="number" class="form-control" id="trend-long-window" name="long_window" min="20" max="200" value="50">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label for="trend-take-profit" class="form-label">Take Profit (%)</label>
+                                            <input type="number" class="form-control" id="trend-take-profit" name="take_profit" min="0.5" max="10" step="0.1" value="3.0">
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label for="trend-stop-loss" class="form-label">Stop Loss (%)</label>
+                                            <input type="number" class="form-control" id="trend-stop-loss" name="stop_loss" min="0.5" max="10" step="0.1" value="2.0">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="d-grid">
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="fas fa-save me-1"></i> Save Trend Following Settings
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Mean Reversion Strategy -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingMean">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseMean" aria-expanded="false" aria-controls="collapseMean">
+                                Mean Reversion Strategy
+                            </button>
+                        </h2>
+                        <div id="collapseMean" class="accordion-collapse collapse" aria-labelledby="headingMean" data-bs-parent="#strategyAccordion">
+                            <div class="accordion-body">
+                                <form id="mean-reversion-form" class="strategy-form" data-strategy="mean_reversion">
+                                    <div class="form-check form-switch mb-3">
+                                        <input class="form-check-input strategy-active" type="checkbox" id="mean-active" checked>
+                                        <label class="form-check-label" for="mean-active">Enable Strategy</label>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-4 mb-3">
+                                            <label for="mean-rsi-period" class="form-label">RSI Period</label>
+                                            <input type="number" class="form-control" id="mean-rsi-period" name="rsi_period" min="5" max="30" value="14">
+                                        </div>
+                                        <div class="col-md-4 mb-3">
+                                            <label for="mean-oversold" class="form-label">Oversold</label>
+                                            <input type="number" class="form-control" id="mean-oversold" name="oversold_threshold" min="10" max="40" value="30">
+                                        </div>
+                                        <div class="col-md-4 mb-3">
+                                            <label for="mean-overbought" class="form-label">Overbought</label>
+                                            <input type="number" class="form-control" id="mean-overbought" name="overbought_threshold" min="60" max="90" value="70">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label for="mean-take-profit" class="form-label">Take Profit (%)</label>
+                                            <input type="number" class="form-control" id="mean-take-profit" name="take_profit" min="0.5" max="10" step="0.1" value="2.0">
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label for="mean-stop-loss" class="form-label">Stop Loss (%)</label>
+                                            <input type="number" class="form-control" id="mean-stop-loss" name="stop_loss" min="0.5" max="10" step="0.1" value="2.0">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="d-grid">
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="fas fa-save me-1"></i> Save Mean Reversion Settings
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Breakout Strategy -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingBreakout">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseBreakout" aria-expanded="false" aria-controls="collapseBreakout">
+                                Breakout Strategy
+                            </button>
+                        </h2>
+                        <div id="collapseBreakout" class="accordion-collapse collapse" aria-labelledby="headingBreakout" data-bs-parent="#strategyAccordion">
+                            <div class="accordion-body">
+                                <form id="breakout-form" class="strategy-form" data-strategy="breakout">
+                                    <div class="form-check form-switch mb-3">
+                                        <input class="form-check-input strategy-active" type="checkbox" id="breakout-active" checked>
+                                        <label class="form-check-label" for="breakout-active">Enable Strategy</label>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-4 mb-3">
+                                            <label for="breakout-period" class="form-label">Period</label>
+                                            <input type="number" class="form-control" id="breakout-period" name="period" min="5" max="50" value="20">
+                                        </div>
+                                        <div class="col-md-4 mb-3">
+                                            <label for="breakout-atr-period" class="form-label">ATR Period</label>
+                                            <input type="number" class="form-control" id="breakout-atr-period" name="atr_period" min="5" max="30" value="14">
+                                        </div>
+                                        <div class="col-md-4 mb-3">
+                                            <label for="breakout-atr-multiplier" class="form-label">ATR Mult.</label>
+                                            <input type="number" class="form-control" id="breakout-atr-multiplier" name="atr_multiplier" min="0.5" max="5" step="0.1" value="2.0">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label for="breakout-take-profit" class="form-label">Take Profit (%)</label>
+                                            <input type="number" class="form-control" id="breakout-take-profit" name="take_profit" min="0.5" max="10" step="0.1" value="4.0">
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label for="breakout-stop-loss" class="form-label">Stop Loss (%)</label>
+                                            <input type="number" class="form-control" id="breakout-stop-loss" name="stop_loss" min="0.5" max="10" step="0.1" value="2.0">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="d-grid">
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="fas fa-save me-1"></i> Save Breakout Settings
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Momentum Strategy -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingMomentum">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseMomentum" aria-expanded="false" aria-controls="collapseMomentum">
+                                Momentum Strategy
+                            </button>
+                        </h2>
+                        <div id="collapseMomentum" class="accordion-collapse collapse" aria-labelledby="headingMomentum" data-bs-parent="#strategyAccordion">
+                            <div class="accordion-body">
+                                <form id="momentum-form" class="strategy-form" data-strategy="momentum">
+                                    <div class="form-check form-switch mb-3">
+                                        <input class="form-check-input strategy-active" type="checkbox" id="momentum-active" checked>
+                                        <label class="form-check-label" for="momentum-active">Enable Strategy</label>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label for="momentum-period" class="form-label">Period</label>
+                                            <input type="number" class="form-control" id="momentum-period" name="period" min="5" max="30" value="14">
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label for="momentum-threshold" class="form-label">Threshold</label>
+                                            <input type="number" class="form-control" id="momentum-threshold" name="threshold" min="0.1" max="2.0" step="0.1" value="0.5">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label for="momentum-take-profit" class="form-label">Take Profit (%)</label>
+                                            <input type="number" class="form-control" id="momentum-take-profit" name="take_profit" min="0.5" max="10" step="0.1" value="3.0">
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label for="momentum-stop-loss" class="form-label">Stop Loss (%)</label>
+                                            <input type="number" class="form-control" id="momentum-stop-loss" name="stop_loss" min="0.5" max="10" step="0.1" value="2.0">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="d-grid">
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="fas fa-save me-1"></i> Save Momentum Settings
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Trading Schedule</h5>
+            </div>
+            <div class="card-body">
+                <form id="schedule-form">
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="auto-trade">
+                            <label class="form-check-label" for="auto-trade">Enable Auto Trading</label>
+                        </div>
+                        <div class="form-text">When enabled, the bot will automatically execute trades based on signals</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="trading-symbols" class="form-label">Trading Symbols</label>
+                        <select class="form-select" id="trading-symbols" multiple size="4">
+                            <option value="BTC-USDT">BTC-USDT</option>
+                            <option value="ETH-USDT">ETH-USDT</option>
+                            <option value="SOL-USDT">SOL-USDT</option>
+                            <option value="XRP-USDT">XRP-USDT</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Trading Timeframes</label>
+                        <div class="timeframe-checks">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value="1m" id="timeframe-1m">
+                                <label class="form-check-label" for="timeframe-1m">1 minute</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value="5m" id="timeframe-5m">
+                                <label class="form-check-label" for="timeframe-5m">5 minutes</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value="15m" id="timeframe-15m">
+                                <label class="form-check-label" for="timeframe-15m">15 minutes</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value="1h" id="timeframe-1h" checked>
+                                <label class="form-check-label" for="timeframe-1h">1 hour</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value="4h" id="timeframe-4h" checked>
+                                <label class="form-check-label" for="timeframe-4h">4 hours</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value="1d" id="timeframe-1d" checked>
+                                <label class="form-check-label" for="timeframe-1d">1 day</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i> Save Trading Schedule
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Trading Hours</h5>
+            </div>
+            <div class="card-body">
+                <form id="trading-schedule-form">
+                    <div class="mb-3">
+                        <div class="form-text mb-3">Configure specific trading hours for each day of the week</div>
+                        
+                        <div class="schedule-day" data-day="monday">
+                            <div class="row align-items-center mb-2">
+                                <div class="col-3">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input day-active" type="checkbox" id="monday-active" checked>
+                                        <label class="form-check-label" for="monday-active">Monday</label>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <input type="time" class="form-control form-control-sm start-time" value="00:00">
+                                </div>
+                                <div class="col-1 text-center">to</div>
+                                <div class="col-4">
+                                    <input type="time" class="form-control form-control-sm end-time" value="23:59">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="schedule-day" data-day="tuesday">
+                            <div class="row align-items-center mb-2">
+                                <div class="col-3">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input day-active" type="checkbox" id="tuesday-active" checked>
+                                        <label class="form-check-label" for="tuesday-active">Tuesday</label>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <input type="time" class="form-control form-control-sm start-time" value="00:00">
+                                </div>
+                                <div class="col-1 text-center">to</div>
+                                <div class="col-4">
+                                    <input type="time" class="form-control form-control-sm end-time" value="23:59">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="schedule-day" data-day="wednesday">
+                            <div class="row align-items-center mb-2">
+                                <div class="col-3">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input day-active" type="checkbox" id="wednesday-active" checked>
+                                        <label class="form-check-label" for="wednesday-active">Wednesday</label>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <input type="time" class="form-control form-control-sm start-time" value="00:00">
+                                </div>
+                                <div class="col-1 text-center">to</div>
+                                <div class="col-4">
+                                    <input type="time" class="form-control form-control-sm end-time" value="23:59">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="schedule-day" data-day="thursday">
+                            <div class="row align-items-center mb-2">
+                                <div class="col-3">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input day-active" type="checkbox" id="thursday-active" checked>
+                                        <label class="form-check-label" for="thursday-active">Thursday</label>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <input type="time" class="form-control form-control-sm start-time" value="00:00">
+                                </div>
+                                <div class="col-1 text-center">to</div>
+                                <div class="col-4">
+                                    <input type="time" class="form-control form-control-sm end-time" value="23:59">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="schedule-day" data-day="friday">
+                            <div class="row align-items-center mb-2">
+                                <div class="col-3">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input day-active" type="checkbox" id="friday-active" checked>
+                                        <label class="form-check-label" for="friday-active">Friday</label>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <input type="time" class="form-control form-control-sm start-time" value="00:00">
+                                </div>
+                                <div class="col-1 text-center">to</div>
+                                <div class="col-4">
+                                    <input type="time" class="form-control form-control-sm end-time" value="23:59">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="schedule-day" data-day="saturday">
+                            <div class="row align-items-center mb-2">
+                                <div class="col-3">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input day-active" type="checkbox" id="saturday-active" checked>
+                                        <label class="form-check-label" for="saturday-active">Saturday</label>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <input type="time" class="form-control form-control-sm start-time" value="00:00">
+                                </div>
+                                <div class="col-1 text-center">to</div>
+                                <div class="col-4">
+                                    <input type="time" class="form-control form-control-sm end-time" value="23:59">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="schedule-day" data-day="sunday">
+                            <div class="row align-items-center mb-2">
+                                <div class="col-3">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input day-active" type="checkbox" id="sunday-active" checked>
+                                        <label class="form-check-label" for="sunday-active">Sunday</label>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <input type="time" class="form-control form-control-sm start-time" value="00:00">
+                                </div>
+                                <div class="col-1 text-center">to</div>
+                                <div class="col-4">
+                                    <input type="time" class="form-control form-control-sm end-time" value="23:59">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i> Save Trading Hours
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
