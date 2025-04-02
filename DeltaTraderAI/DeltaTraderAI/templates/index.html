@@ -1,0 +1,309 @@
+{% extends 'layout.html' %}
+
+{% block title %}Trading Bot | Home{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card intro-card">
+            <div class="card-body">
+                <h2 class="card-title">Delta Exchange Trading Bot</h2>
+                <p class="card-text">
+                    Welcome to your autonomous trading platform with multiple strategies and machine learning optimization.
+                </p>
+                <div class="d-flex flex-row mt-4">
+                    <a href="{{ url_for('main_bp.dashboard') }}" class="btn btn-primary me-2">
+                        <i class="fas fa-chart-line me-1"></i> Go to Dashboard
+                    </a>
+                    <a href="{{ url_for('main_bp.backtest') }}" class="btn btn-secondary me-2">
+                        <i class="fas fa-vial me-1"></i> Run Backtest
+                    </a>
+                    <a href="{{ url_for('main_bp.settings') }}" class="btn btn-outline-light">
+                        <i class="fas fa-cog me-1"></i> Configure Bot
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Strategy Overview</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-4">
+                        <div class="strategy-card">
+                            <h6><i class="fas fa-chart-line me-2"></i> Trend Following</h6>
+                            <p>Uses Simple Moving Average (SMA) crossovers to identify market trends and generate trading signals.</p>
+                            <div class="badge bg-primary">Active</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-4">
+                        <div class="strategy-card">
+                            <h6><i class="fas fa-sync-alt me-2"></i> Mean Reversion</h6>
+                            <p>Identifies overbought and oversold conditions using Relative Strength Index (RSI).</p>
+                            <div class="badge bg-primary">Active</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-4">
+                        <div class="strategy-card">
+                            <h6><i class="fas fa-expand-arrows-alt me-2"></i> Breakout</h6>
+                            <p>Detects price breakouts from established ranges using period highs/lows and ATR.</p>
+                            <div class="badge bg-primary">Active</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-4">
+                        <div class="strategy-card">
+                            <h6><i class="fas fa-bolt me-2"></i> Momentum</h6>
+                            <p>Captures price momentum using rate of change calculations to ride strong trends.</p>
+                            <div class="badge bg-primary">Active</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Quick Stats</h5>
+            </div>
+            <div class="card-body">
+                <div class="stats-container">
+                    <div class="stat-item">
+                        <div class="stat-title">Bot Status</div>
+                        <div class="stat-value" id="home-bot-status">
+                            <span class="status-dot" id="home-status-indicator"></span>
+                            <span id="home-status-text">Initializing</span>
+                        </div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-title">Active Trades</div>
+                        <div class="stat-value" id="active-trades">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-title">Today's PnL</div>
+                        <div class="stat-value" id="today-pnl">$0.00</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-title">Last Signal</div>
+                        <div class="stat-value" id="last-signal">None</div>
+                    </div>
+                </div>
+                
+                <div class="mt-4">
+                    <button class="btn btn-success btn-sm me-2" id="start-bot">
+                        <i class="fas fa-play me-1"></i> Start Bot
+                    </button>
+                    <button class="btn btn-warning btn-sm me-2" id="pause-bot">
+                        <i class="fas fa-pause me-1"></i> Pause Bot
+                    </button>
+                    <button class="btn btn-danger btn-sm" id="stop-bot">
+                        <i class="fas fa-stop me-1"></i> Stop Bot
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Machine Learning</h5>
+            </div>
+            <div class="card-body">
+                <p>
+                    <i class="fas fa-brain me-2"></i> Strategy optimization using Proximal Policy Optimization (PPO)
+                </p>
+                <div class="d-grid">
+                    <button class="btn btn-primary" id="optimize-strategies">
+                        <i class="fas fa-sync me-1"></i> Run Optimization
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Recent Trades</h5>
+                <a href="{{ url_for('main_bp.dashboard') }}" class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-external-link-alt me-1"></i> View All
+                </a>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Symbol</th>
+                                <th>Strategy</th>
+                                <th>Type</th>
+                                <th>Entry</th>
+                                <th>Exit</th>
+                                <th>Size</th>
+                                <th>PnL</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recent-trades">
+                            <tr>
+                                <td colspan="8" class="text-center">No trades found</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    $(document).ready(function() {
+        // Update home page specific stats
+        function updateHomeStats() {
+            // Update bot status
+            $.get('/api/get_bot_status', function(data) {
+                if (data.success) {
+                    $('#home-status-text').text(data.status);
+                    if (data.status === 'Running') {
+                        $('#home-status-indicator').removeClass('status-inactive status-warning').addClass('status-active');
+                    } else if (data.status === 'Paused') {
+                        $('#home-status-indicator').removeClass('status-active status-inactive').addClass('status-warning');
+                    } else {
+                        $('#home-status-indicator').removeClass('status-active status-warning').addClass('status-inactive');
+                    }
+                }
+            });
+            
+            // Update active trades
+            $.get('/api/get_active_trades', function(data) {
+                if (data.success) {
+                    $('#active-trades').text(data.count);
+                }
+            });
+            
+            // Update today's PnL
+            $.get('/api/get_daily_pnl', function(data) {
+                if (data.success) {
+                    const pnl = parseFloat(data.pnl);
+                    $('#today-pnl').text('$' + pnl.toFixed(2));
+                    if (pnl > 0) {
+                        $('#today-pnl').addClass('text-success').removeClass('text-danger');
+                    } else if (pnl < 0) {
+                        $('#today-pnl').addClass('text-danger').removeClass('text-success');
+                    } else {
+                        $('#today-pnl').removeClass('text-success text-danger');
+                    }
+                }
+            });
+            
+            // Update last signal
+            $.get('/api/get_last_signal', function(data) {
+                if (data.success && data.signal) {
+                    let signalText = `${data.signal.symbol} ${data.signal.direction} (${data.signal.strategy})`;
+                    $('#last-signal').text(signalText);
+                    
+                    if (data.signal.direction === 'buy') {
+                        $('#last-signal').addClass('text-success').removeClass('text-danger');
+                    } else if (data.signal.direction === 'sell') {
+                        $('#last-signal').addClass('text-danger').removeClass('text-success');
+                    } else {
+                        $('#last-signal').removeClass('text-success text-danger');
+                    }
+                }
+            });
+            
+            // Load recent trades
+            $.get('/api/get_recent_trades', function(data) {
+                if (data.success && data.trades && data.trades.length > 0) {
+                    let tradesHtml = '';
+                    data.trades.forEach(trade => {
+                        const pnlClass = parseFloat(trade.pnl) >= 0 ? 'text-success' : 'text-danger';
+                        tradesHtml += `
+                            <tr>
+                                <td>${new Date(trade.exit_time).toLocaleString()}</td>
+                                <td>${trade.symbol}</td>
+                                <td>${trade.strategy}</td>
+                                <td>${trade.direction}</td>
+                                <td>$${parseFloat(trade.entry_price).toFixed(2)}</td>
+                                <td>$${parseFloat(trade.exit_price).toFixed(2)}</td>
+                                <td>${parseFloat(trade.quantity).toFixed(4)}</td>
+                                <td class="${pnlClass}">$${parseFloat(trade.pnl).toFixed(2)} (${parseFloat(trade.pnl_percentage).toFixed(2)}%)</td>
+                            </tr>
+                        `;
+                    });
+                    $('#recent-trades').html(tradesHtml);
+                } else {
+                    $('#recent-trades').html('<tr><td colspan="8" class="text-center">No trades found</td></tr>');
+                }
+            });
+        }
+        
+        // Initial update
+        updateHomeStats();
+        
+        // Set interval for updates
+        setInterval(updateHomeStats, 10000); // Every 10 seconds
+        
+        // Bot control buttons
+        $('#start-bot').click(function() {
+            $.post('/api/start_bot', function(data) {
+                if (data.success) {
+                    alert('Bot started successfully');
+                    updateHomeStats();
+                } else {
+                    alert('Failed to start bot: ' + data.message);
+                }
+            });
+        });
+        
+        $('#pause-bot').click(function() {
+            $.post('/api/pause_bot', function(data) {
+                if (data.success) {
+                    alert('Bot paused successfully');
+                    updateHomeStats();
+                } else {
+                    alert('Failed to pause bot: ' + data.message);
+                }
+            });
+        });
+        
+        $('#stop-bot').click(function() {
+            $.post('/api/stop_bot', function(data) {
+                if (data.success) {
+                    alert('Bot stopped successfully');
+                    updateHomeStats();
+                } else {
+                    alert('Failed to stop bot: ' + data.message);
+                }
+            });
+        });
+        
+        // Optimization button
+        $('#optimize-strategies').click(function() {
+            if (confirm('Running optimization may take several minutes. Continue?')) {
+                $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Optimizing...');
+                
+                $.post('/api/optimize_strategies', function(data) {
+                    if (data.success) {
+                        alert('Optimization completed successfully');
+                    } else {
+                        alert('Optimization failed: ' + data.message);
+                    }
+                }).always(function() {
+                    $('#optimize-strategies').prop('disabled', false).html('<i class="fas fa-sync me-1"></i> Run Optimization');
+                });
+            }
+        });
+    });
+</script>
+{% endblock %}

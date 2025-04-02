@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Delta Exchange Trading Bot{% endblock %}</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Google Fonts: Roboto Mono and IBM Plex Sans -->
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=Roboto+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    
+    <!-- Additional CSS to Fix Text Colors -->
+    <style>
+        input, select, textarea, .form-control, .form-select, button {
+            color: var(--text) !important;
+        }
+        
+        .dropdown-menu {
+            background-color: var(--card-bg) !important;
+            border-color: var(--card-border) !important;
+        }
+        
+        .dropdown-item {
+            color: var(--text) !important;
+        }
+        
+        .dropdown-item:hover {
+            background-color: var(--secondary) !important;
+        }
+    </style>
+    
+    {% block extra_styles %}{% endblock %}
+</head>
+<body>
+    <div class="wrapper">
+        <!-- Sidebar -->
+        <nav id="sidebar">
+            <div class="sidebar-header">
+                <h3><i class="fas fa-robot me-2"></i> Trading Bot</h3>
+            </div>
+
+            <ul class="list-unstyled components">
+                <li {% if request.path == "/" %}class="active"{% endif %}>
+                    <a href="{{ url_for('main_bp.index') }}">
+                        <i class="fas fa-home me-2"></i> Home
+                    </a>
+                </li>
+                <li {% if request.path == "/dashboard" %}class="active"{% endif %}>
+                    <a href="{{ url_for('main_bp.dashboard') }}">
+                        <i class="fas fa-chart-line me-2"></i> Dashboard
+                    </a>
+                </li>
+                <li {% if request.path == "/backtest" %}class="active"{% endif %}>
+                    <a href="{{ url_for('main_bp.backtest') }}">
+                        <i class="fas fa-vial me-2"></i> Backtest
+                    </a>
+                </li>
+                <li {% if request.path == "/settings" %}class="active"{% endif %}>
+                    <a href="{{ url_for('main_bp.settings') }}">
+                        <i class="fas fa-cog me-2"></i> Settings
+                    </a>
+                </li>
+                <li {% if request.path == "/supervisor" %}class="active"{% endif %}>
+                    <a href="{{ url_for('main_bp.supervisor') }}">
+                        <i class="fas fa-brain me-2"></i> Supervisor
+                    </a>
+                </li>
+            </ul>
+            
+            <div class="sidebar-footer">
+                <p>© 2023 Trading Bot</p>
+                <p class="version">v1.0.0</p>
+            </div>
+        </nav>
+
+        <!-- Page Content -->
+        <div id="content">
+            <nav class="navbar navbar-expand-lg">
+                <div class="container-fluid">
+                    <button type="button" id="sidebarCollapse" class="btn btn-primary">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    
+                    <div class="ms-auto d-flex align-items-center">
+                        <div class="market-status me-3 d-none d-md-block">
+                            <span class="status-label">BTC-USDT:</span>
+                            <span class="price" id="btc-price">--</span>
+                        </div>
+                        <div class="market-status me-3 d-none d-md-block">
+                            <span class="status-label">ETH-USDT:</span>
+                            <span class="price" id="eth-price">--</span>
+                        </div>
+                        <div class="bot-status ms-3">
+                            <span class="status-dot" id="bot-status-indicator"></span>
+                            <span id="bot-status-text">Initializing</span>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+
+            <div class="container-fluid">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+                
+                {% block content %}{% endblock %}
+            </div>
+        </div>
+    </div>
+
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Base JS -->
+    <script>
+        $(document).ready(function() {
+            // Toggle sidebar
+            $('#sidebarCollapse').on('click', function() {
+                $('#sidebar').toggleClass('active');
+            });
+            
+            // Update market prices
+            function updateMarketPrices() {
+                $.get('/api/get_tickers', function(data) {
+                    if (data.success) {
+                        const tickers = data.data;
+                        tickers.forEach(ticker => {
+                            if (ticker.symbol === 'BTC-USDT') {
+                                $('#btc-price').text('$' + parseFloat(ticker.mark_price).toFixed(2));
+                            } else if (ticker.symbol === 'ETH-USDT') {
+                                $('#eth-price').text('$' + parseFloat(ticker.mark_price).toFixed(2));
+                            }
+                        });
+                    }
+                }).fail(function() {
+                    console.error('Failed to fetch market prices');
+                });
+            }
+            
+            // Update bot status
+            function updateBotStatus() {
+                $.get('/api/get_bot_status', function(data) {
+                    if (data.success) {
+                        $('#bot-status-text').text(data.status);
+                        if (data.status === 'Running') {
+                            $('#bot-status-indicator').removeClass('status-inactive status-warning').addClass('status-active');
+                        } else if (data.status === 'Paused') {
+                            $('#bot-status-indicator').removeClass('status-active status-inactive').addClass('status-warning');
+                        } else {
+                            $('#bot-status-indicator').removeClass('status-active status-warning').addClass('status-inactive');
+                        }
+                    }
+                }).fail(function() {
+                    $('#bot-status-indicator').removeClass('status-active status-warning').addClass('status-inactive');
+                    $('#bot-status-text').text('Disconnected');
+                });
+            }
+            
+            // Initial updates
+            updateMarketPrices();
+            updateBotStatus();
+            
+            // Set intervals for updates
+            setInterval(updateMarketPrices, 30000); // Every 30 seconds
+            setInterval(updateBotStatus, 10000);    // Every 10 seconds
+        });
+    </script>
+    
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>
